@@ -28,27 +28,53 @@ export const createJob = async (req, res) => {
 export const getJobs = async (req, res) => {
   try {
     const {
+      title,
       location,
       country,
       workType,
       jobType,
+      jobProfile,
       skills,
       keyword,
+      status,
       page = 1,
       limit = 20,
       sort = "newest",
+      all = false, // For admin: fetch all jobs regardless of status
     } = req.query;
 
-    const query = { status: "active" };
+    const query = all ? {} : { status: "active" };
 
-    if (location) query.location = new RegExp(location, "i");
-    if (country) query.country = new RegExp(country, "i");
+    // If status is specified, use it (for admin filtering)
+    if (status && all) {
+      query.status = status;
+    }
+
+    // Helper function to escape special regex characters for safe regex matching
+    const escapeRegex = (str) => {
+      return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    };
+
+    if (location) query.location = new RegExp(escapeRegex(location), "i");
+    // For title, allow partial matching (title contains the search term)
+    if (title) {
+      const escapedTitle = escapeRegex(title);
+      query.title = new RegExp(escapedTitle, "i");
+    }
+    if (country) query.country = new RegExp(escapeRegex(country), "i");
     if (workType) query.workType = new RegExp(workType, "i");
     if (jobType) query.jobType = new RegExp(jobType, "i");
-    if (skills) query.skills = { $in: skills.split(",") };
-    if (keyword) query.$text = { $search: keyword };
+    if (jobProfile) query.jobProfile = new RegExp(jobProfile, "i");
+    if (skills) query.skills = { $in: skills.split(",").map((s) => s.trim()) };
+    if (keyword) {
+      query.$or = [
+        { skills: { $regex: keyword, $options: "i" } },
+        { companyName: { $regex: keyword, $options: "i" } },
+        { aboutRole: { $regex: keyword, $options: "i" } },
+      ];
+    }
 
-    const skip = (page - 1) * limit;
+    const skip = (Number(page) - 1) * Number(limit);
 
     const sortOptions = {
       newest: { createdAt: -1 },
@@ -78,11 +104,11 @@ export const getJobs = async (req, res) => {
   }
 };
 
-export const getJobById = async (req, res) => {
+export const getJobBySlug = async (req, res) => {
   try {
-    const job = await Job.findById(req.params.id);
+    const job = await Job.findOne({ slug: req.params.slug });
     if (!job) return res.status(404).json({ message: "Job not found" });
-    res.json(job);
+    res.json({ success: true, job });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -105,5 +131,31 @@ export const deleteJob = async (req, res) => {
     res.json({ success: true, message: "Job deleted" });
   } catch (error) {
     res.status(500).json({ message: error.message });
+  }
+};
+
+export const getJobTitles = async (req, res) => {
+  try {
+    const titles = await Job.distinct("title", { status: "active" });
+    // Sort titles alphabetically
+    const sortedTitles = titles.sort((a, b) => a.localeCompare(b));
+    res.json({ success: true, titles: sortedTitles });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const getJobLocations = async (req, res) => {
+  try {
+    const { all = false } = req.query;
+    const query = all ? { location: { $ne: null, $ne: "" } } : { status: "active", location: { $ne: null, $ne: "" } };
+    const locations = await Job.distinct("location", query);
+    // Sort locations alphabetically and filter out null/empty
+    const sortedLocations = locations
+      .filter((loc) => loc && loc.trim() !== "")
+      .sort((a, b) => a.localeCompare(b));
+    res.json({ success: true, locations: sortedLocations });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
   }
 };

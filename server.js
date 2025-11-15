@@ -5,6 +5,9 @@ import morgan from "morgan";
 import compression from "compression";
 import connectDB from "./config/db.js";
 import jobRoutes from "./routes/jobRoutes.js";
+import blogRoutes from "./routes/blogRoutes.js";
+import contactRoutes from "./routes/contactRoutes.js";
+import authRoutes from "./routes/authRoutes.js";
 
 dotenv.config();
 const app = express();
@@ -15,6 +18,9 @@ app.use(morgan("dev"));
 app.use(compression());
 
 app.use("/api/jobs", jobRoutes);
+app.use("/api/blogs", blogRoutes);
+app.use("/api/contacts", contactRoutes);
+app.use("/api/auth", authRoutes);
 
 app.get("/", (req, res) => {
   res.send("🌐 Job Portal API is running...");
