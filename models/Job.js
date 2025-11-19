@@ -31,6 +31,11 @@ const jobSchema = new mongoose.Schema(
     },
     source: { type: String, default: "Company Website" },
     slug: { type: String, required: true, unique: true, index: true },
+    createdBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      index: true,
+    },
   },
   { timestamps: true }
 );

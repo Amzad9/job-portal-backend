@@ -1,26 +1,99 @@
 import Job from "../models/Job.js";
 
+// Helper function to generate slug from title
+const generateSlug = (title) => {
+  return title
+    .toLowerCase()
+    .replace(/[^\w\s-]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .trim();
+};
+
 export const createJob = async (req, res) => {
   try {
-    const { title, companyName, location } = req.body;
+    const { title, companyName, location, slug } = req.body;
 
-    const existingJob = await Job.findOne({
-      title: new RegExp(`^${title}$`, "i"),
-      // companyName: new RegExp(`^${companyName}$`, "i"),
-      // location: new RegExp(`^${location}$`, "i"),
-    });
-
-    if (existingJob) {
-      return res.status(400).json({
+    // Check if user is authenticated (should be, due to protect middleware)
+    if (!req.user) {
+      return res.status(401).json({
         success: false,
-        message: "Duplicate job detected: This job already exists.",
+        message: "Not authorized to create jobs",
       });
     }
 
-    const job = await Job.create(req.body);
+    // Validate required fields
+    if (!title || !companyName) {
+      return res.status(400).json({
+        success: false,
+        message: "Title and company name are required",
+      });
+    }
+
+    // Allow both admin and regular users to create jobs
+    // Admins can post jobs for any company, regular users post for their own company
+    const jobData = {
+      ...req.body,
+      createdBy: req.user._id,
+    };
+
+    // If user is not admin, use their company name
+    if (req.user.role !== "admin" && req.user.companyName) {
+      jobData.companyName = req.user.companyName;
+      if (req.user.companyLogo) {
+        jobData.companyLogo = req.user.companyLogo;
+      }
+      if (req.user.companyWebsite) {
+        jobData.companyWebsite = req.user.companyWebsite;
+      }
+      if (req.user.aboutCompany) {
+        jobData.aboutCompany = req.user.aboutCompany;
+      }
+    }
+
+    // Generate or validate slug
+    let finalSlug = slug || generateSlug(title);
+    
+    // Ensure slug is unique
+    let existingJob = await Job.findOne({ slug: finalSlug });
+    let counter = 1;
+    while (existingJob) {
+      finalSlug = `${generateSlug(title)}-${counter}`;
+      existingJob = await Job.findOne({ slug: finalSlug });
+      counter++;
+    }
+    
+    jobData.slug = finalSlug;
+
+    // Check for duplicate job by title (optional - can be removed if not needed)
+    const duplicateJob = await Job.findOne({
+      title: new RegExp(`^${title}$`, "i"),
+      companyName: new RegExp(`^${companyName}$`, "i"),
+    });
+
+    if (duplicateJob) {
+      return res.status(400).json({
+        success: false,
+        message: "A job with this title and company already exists.",
+      });
+    }
+
+    const job = await Job.create(jobData);
     res.status(201).json({ success: true, job });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    // Handle MongoDB duplicate key error for slug
+    if (error.code === 11000 && error.keyPattern?.slug) {
+      return res.status(400).json({
+        success: false,
+        message: "A job with this slug already exists. Please try a different title.",
+      });
+    }
+    
+    console.error("Error creating job:", error);
+    res.status(500).json({ 
+      success: false, 
+      message: error.message || "Error creating job post" 
+    });
   }
 };
 
