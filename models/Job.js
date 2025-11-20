@@ -23,6 +23,9 @@ const jobSchema = new mongoose.Schema(
     skills: { type: [String], index: true },
     experienceLevel: { type: String, index: true },
     isFeatured: { type: Boolean, default: false },
+    featuredUntil: { type: Date }, // When featured status expires
+    views: { type: Number, default: 0 },
+    applicationCount: { type: Number, default: 0 },
     status: {
       type: String,
       enum: ["active", "expired", "draft"],
@@ -31,6 +34,8 @@ const jobSchema = new mongoose.Schema(
     },
     source: { type: String, default: "Company Website" },
     slug: { type: String, required: true, unique: true, index: true },
+    externalId: { type: String, index: true }, // For tracking jobs from external APIs (e.g., Adzuna)
+    externalSource: { type: String }, // e.g., "adzuna"
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",

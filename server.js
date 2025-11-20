@@ -1,16 +1,49 @@
 import express from "express";
 import dotenv from "dotenv";
+
+// Load environment variables FIRST before importing anything that uses them
+dotenv.config();
+
 import cors from "cors";
 import morgan from "morgan";
 import compression from "compression";
+import session from "express-session";
+import passport from "./config/passport.js";
 import connectDB from "./config/db.js";
 import jobRoutes from "./routes/jobRoutes.js";
 import blogRoutes from "./routes/blogRoutes.js";
 import contactRoutes from "./routes/contactRoutes.js";
 import authRoutes from "./routes/authRoutes.js";
-
-dotenv.config();
+import applicationRoutes from "./routes/applicationRoutes.js";
+import adzunaRoutes from "./routes/adzunaRoutes.js";
+import subscriptionRoutes from "./routes/subscriptionRoutes.js";
+import analyticsRoutes from "./routes/analyticsRoutes.js";
+import featuredRoutes from "./routes/featuredRoutes.js";
+import savedSearchRoutes from "./routes/savedSearchRoutes.js";
+import candidateProfileRoutes from "./routes/candidateProfileRoutes.js";
+import adminAnalyticsRoutes from "./routes/adminAnalyticsRoutes.js";
 const app = express();
+
+// Initialize Passport
+app.use(
+  session({
+    secret: process.env.SESSION_SECRET || "your-secret-key-change-in-production",
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      secure: process.env.NODE_ENV === "production", // Use secure cookies in production
+      httpOnly: true,
+      maxAge: 24 * 60 * 60 * 1000, // 24 hours
+    },
+  })
+);
+app.use(passport.initialize());
+app.use(passport.session());
+
+// Log registered strategies for debugging
+if (process.env.NODE_ENV !== "production") {
+  console.log("📋 Registered Passport strategies:", Object.keys(passport._strategies));
+}
 
 // CORS configuration
 const allowedOrigins = process.env.FRONTEND_URL 
@@ -71,6 +104,14 @@ app.use("/api/jobs", jobRoutes);
 app.use("/api/blogs", blogRoutes);
 app.use("/api/contacts", contactRoutes);
 app.use("/api/auth", authRoutes);
+app.use("/api/applications", applicationRoutes);
+app.use("/api/adzuna", adzunaRoutes);
+app.use("/api/subscriptions", subscriptionRoutes);
+app.use("/api/analytics", analyticsRoutes);
+app.use("/api/featured", featuredRoutes);
+app.use("/api/saved-searches", savedSearchRoutes);
+app.use("/api/candidate-profiles", candidateProfileRoutes);
+app.use("/api/admin/analytics", adminAnalyticsRoutes);
 
 app.get("/", (req, res) => {
   res.send("🌐 Job Portal API is running...");
@@ -101,4 +142,17 @@ app.use((err, req, res, next) => {
 
 connectDB();
 const PORT = process.env.PORT || 5000;
+
+// Import and start cron jobs
+if (process.env.ENABLE_ADZUNA_IMPORT !== "false") {
+  import("./cron/jobImport.js").catch((error) => {
+    console.error("Error loading cron jobs:", error);
+  });
+}
+
+// Import job alerts cron job
+import("./cron/jobAlerts.js").catch((error) => {
+  console.error("Error loading job alerts cron:", error);
+});
+
 app.listen(PORT, () => console.log(`http://localhost:${PORT}`));

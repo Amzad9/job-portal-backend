@@ -4,16 +4,17 @@ import crypto from "crypto";
 
 const userSchema = new mongoose.Schema(
   {
-    companyName: { type: String, required: true, trim: true },
+    companyName: { type: String, trim: true }, // Optional for candidates
+    name: { type: String, trim: true }, // For candidates
     email: { type: String, required: true, unique: true, trim: true, lowercase: true, index: true },
-    password: { type: String, required: true, select: false },
+    password: { type: String, select: false }, // Optional for OAuth users
     phone: { type: String, trim: true },
     companyWebsite: { type: String, trim: true },
     companyLogo: { type: String },
     aboutCompany: { type: String },
     role: {
       type: String,
-      enum: ["company", "admin"],
+      enum: ["company", "admin", "candidate"],
       default: "company",
     },
     isVerified: { type: Boolean, default: false },
@@ -21,13 +22,25 @@ const userSchema = new mongoose.Schema(
     resetPasswordExpire: { type: Date },
     emailVerificationToken: { type: String },
     emailVerificationExpire: { type: Date },
+    // OAuth fields
+    provider: { type: String, enum: ["local", "google", "linkedin"], default: "local" },
+    providerId: { type: String }, // OAuth provider user ID
+    providerData: { type: mongoose.Schema.Types.Mixed }, // Store additional OAuth data
+    // Subscription fields
+    subscription: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Subscription",
+    },
+    jobPostsCount: { type: Number, default: 0 }, // Track current month's job posts
+    lastJobPostReset: { type: Date, default: Date.now }, // Track when to reset count
   },
   { timestamps: true }
 );
 
-// Hash password before saving
+// Hash password before saving (only if password is provided and not from OAuth)
 userSchema.pre("save", async function (next) {
-  if (!this.isModified("password")) {
+  // Skip password hashing for OAuth users or if password is not modified
+  if (this.provider !== "local" || !this.isModified("password") || !this.password) {
     return next();
   }
   const salt = await bcrypt.genSalt(10);

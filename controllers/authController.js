@@ -8,14 +8,30 @@ import crypto from "crypto";
 // @access  Public
 export const signup = async (req, res) => {
   try {
-    const { companyName, email, password, phone, companyWebsite } = req.body;
+    const { companyName, name, email, password, phone, companyWebsite, role } = req.body;
 
-    if (!companyName || !email || !password) {
-      return res.status(400).json({
-        success: false,
-        message: "Company name, email, and password are required",
-      });
+    // Determine user role
+    const userRole = role || "company";
+
+    // Validate required fields based on role
+    if (userRole === "candidate") {
+      if (!name || !email || !password) {
+        return res.status(400).json({
+          success: false,
+          message: "Name, email, and password are required for candidate signup",
+        });
+      }
+    } else {
+      if (!companyName || !email || !password) {
+        return res.status(400).json({
+          success: false,
+          message: "Company name, email, and password are required",
+        });
+      }
     }
+
+    // Set provider to local for regular signups
+    const provider = "local";
 
     // Check if user already exists
     const existingUser = await User.findOne({ email: email.toLowerCase() });
@@ -34,14 +50,23 @@ export const signup = async (req, res) => {
       });
     }
 
-    // Create user
-    const user = await User.create({
-      companyName: companyName.trim(),
+    // Create user based on role
+    const userData = {
       email: email.toLowerCase().trim(),
       password,
       phone: phone?.trim(),
-      companyWebsite: companyWebsite?.trim(),
-    });
+      role: userRole,
+      provider: "local",
+    };
+
+    if (userRole === "candidate") {
+      userData.name = name.trim();
+    } else {
+      userData.companyName = companyName.trim();
+      if (companyWebsite) userData.companyWebsite = companyWebsite.trim();
+    }
+
+    const user = await User.create(userData);
 
     // Generate verification token
     const verificationToken = user.generateVerificationToken();
@@ -69,6 +94,7 @@ export const signup = async (req, res) => {
       user: {
         id: user._id,
         companyName: user.companyName,
+        name: user.name,
         email: user.email,
         role: user.role,
         isVerified: user.isVerified,
@@ -105,6 +131,14 @@ export const login = async (req, res) => {
       });
     }
 
+    // Check if user is OAuth-only (no password)
+    if (user.provider !== "local" && !user.password) {
+      return res.status(401).json({
+        success: false,
+        message: `This account is linked to ${user.provider}. Please sign in with Google.`,
+      });
+    }
+
     // Check if password matches
     const isMatch = await user.comparePassword(password);
     if (!isMatch) {
@@ -124,6 +158,7 @@ export const login = async (req, res) => {
       user: {
         id: user._id,
         companyName: user.companyName,
+        name: user.name,
         email: user.email,
         role: user.role,
         isVerified: user.isVerified,
@@ -146,6 +181,7 @@ export const getMe = async (req, res) => {
       user: {
         id: user._id,
         companyName: user.companyName,
+        name: user.name,
         email: user.email,
         phone: user.phone,
         companyWebsite: user.companyWebsite,
@@ -166,7 +202,7 @@ export const getMe = async (req, res) => {
 // @access  Private
 export const updateProfile = async (req, res) => {
   try {
-    const { companyName, email, phone, companyWebsite, companyLogo, aboutCompany } = req.body;
+    const { companyName, name, email, phone, companyWebsite, companyLogo, aboutCompany } = req.body;
 
     const user = await User.findById(req.user.id);
 
@@ -189,12 +225,17 @@ export const updateProfile = async (req, res) => {
       user.email = email.toLowerCase().trim();
     }
 
-    // Update fields
-    if (companyName) user.companyName = companyName.trim();
+    // Update fields based on role
+    if (user.role === "candidate") {
+      if (name) user.name = name.trim();
+    } else {
+      if (companyName) user.companyName = companyName.trim();
+      if (companyWebsite !== undefined) user.companyWebsite = companyWebsite?.trim() || "";
+      if (companyLogo !== undefined) user.companyLogo = companyLogo?.trim() || "";
+      if (aboutCompany !== undefined) user.aboutCompany = aboutCompany?.trim() || "";
+    }
+    
     if (phone !== undefined) user.phone = phone?.trim() || "";
-    if (companyWebsite !== undefined) user.companyWebsite = companyWebsite?.trim() || "";
-    if (companyLogo !== undefined) user.companyLogo = companyLogo?.trim() || "";
-    if (aboutCompany !== undefined) user.aboutCompany = aboutCompany?.trim() || "";
 
     await user.save();
 
@@ -204,6 +245,7 @@ export const updateProfile = async (req, res) => {
       user: {
         id: user._id,
         companyName: user.companyName,
+        name: user.name,
         email: user.email,
         phone: user.phone,
         companyWebsite: user.companyWebsite,
@@ -323,6 +365,7 @@ export const resetPassword = async (req, res) => {
       user: {
         id: user._id,
         companyName: user.companyName,
+        name: user.name,
         email: user.email,
         role: user.role,
         isVerified: user.isVerified,
