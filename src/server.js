@@ -54,12 +54,19 @@ if (process.env.NODE_ENV !== "production") {
 // CORS configuration
 const allowedOrigins = process.env.FRONTEND_URL 
   ? process.env.FRONTEND_URL.split(',').map(url => url.trim())
-  : ["http://localhost:3000", "http://localhost:3001", "http://127.0.0.1:3000"];
+  : ["http://localhost:3000", "http://localhost:3001", "http://127.0.0.1:3000", "https://jobs.weblibron.com"];
+
+// Log allowed origins on startup
+console.log("🌐 CORS Configuration:");
+console.log("   FRONTEND_URL:", process.env.FRONTEND_URL || "not set");
+console.log("   Allowed origins:", allowedOrigins);
+console.log("   NODE_ENV:", process.env.NODE_ENV || "not set");
 
 const corsOptions = {
   origin: function (origin, callback) {
     // Allow requests with no origin (like mobile apps, curl, Postman, or server-side requests)
     if (!origin) {
+      console.log("✅ CORS: Allowing request with no origin (server-side)");
       return callback(null, true);
     }
     
@@ -68,16 +75,22 @@ const corsOptions = {
     if (isDevelopment) {
       // Allow any localhost origin in development
       if (origin.includes('localhost') || origin.includes('127.0.0.1') || origin.includes('0.0.0.0')) {
+        console.log(`✅ CORS: Allowing localhost origin in development: ${origin}`);
         return callback(null, true);
       }
     }
     
     // Check if origin is in allowed list
     if (allowedOrigins.indexOf(origin) !== -1) {
+      console.log(`✅ CORS: Allowing origin: ${origin}`);
       callback(null, true);
     } else {
-      console.warn(`CORS: Origin ${origin} not allowed`);
-      callback(new Error('Not allowed by CORS'));
+      // Log CORS rejection for debugging
+      console.error(`❌ CORS blocked origin: ${origin}`);
+      console.error(`📋 Allowed origins:`, allowedOrigins);
+      console.error(`🌐 FRONTEND_URL env:`, process.env.FRONTEND_URL);
+      console.error(`🔧 NODE_ENV:`, process.env.NODE_ENV);
+      callback(new Error(`CORS: Origin ${origin} not allowed. Allowed: ${allowedOrigins.join(', ')}`));
     }
   },
   credentials: true,
@@ -95,6 +108,8 @@ const corsOptions = {
   optionsSuccessStatus: 200,
   preflightContinue: false,
   maxAge: 86400, // 24 hours
+  // Allow credentials
+  credentials: true,
 };
 
 // Apply CORS middleware - must be before other middleware

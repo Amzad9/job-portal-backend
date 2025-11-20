@@ -88,6 +88,12 @@ export const getImportStats = async (req, res) => {
 // Fetch jobs directly from Adzuna API (for frontend display)
 export const fetchAdzunaJobs = async (req, res) => {
   try {
+    console.log("📥 Adzuna jobs request received:", {
+      query: req.query,
+      origin: req.headers.origin,
+      referer: req.headers.referer,
+    });
+
     const {
       country = "us",
       page = 1,
@@ -102,6 +108,7 @@ export const fetchAdzunaJobs = async (req, res) => {
     const appKey = process.env.ADZUNA_APP_KEY;
 
     if (!appId || !appKey) {
+      console.error("❌ Adzuna API credentials not configured");
       return res.status(500).json({
         success: false,
         message: "Adzuna API credentials not configured",
@@ -122,16 +129,46 @@ export const fetchAdzunaJobs = async (req, res) => {
 
     const apiUrl = `${baseUrl}?${params.toString()}`;
 
-    console.log(`Fetching Adzuna jobs from: ${apiUrl.replace(appKey, "***")}`);
+    console.log(`🌐 Calling Adzuna API: ${baseUrl} (params hidden)`);
 
-    const response = await axios.get(apiUrl, {
-      timeout: 10000, // 10 second timeout
-      validateStatus: (status) => status < 500, // Don't throw on 4xx errors
-    });
+    let response;
+    try {
+      response = await axios.get(apiUrl, {
+        timeout: 15000, // 15 second timeout
+        validateStatus: (status) => status < 500, // Don't throw on 4xx errors
+      });
+    } catch (error) {
+      console.error("❌ Adzuna API request failed:", {
+        message: error.message,
+        code: error.code,
+        response: error.response?.data,
+        status: error.response?.status,
+      });
+      
+      if (error.code === "ECONNABORTED") {
+        return res.status(504).json({
+          success: false,
+          message: "Adzuna API request timed out. Please try again.",
+        });
+      }
+      
+      if (error.code === "ENOTFOUND" || error.code === "ECONNREFUSED") {
+        return res.status(503).json({
+          success: false,
+          message: "Cannot connect to Adzuna API. Please try again later.",
+        });
+      }
+      
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to fetch jobs from Adzuna API",
+        error: error.code,
+      });
+    }
 
     // Check for API errors
     if (response.status !== 200) {
-      console.error("Adzuna API error:", response.status, response.data);
+      console.error("❌ Adzuna API error:", response.status, response.data);
       return res.status(response.status).json({
         success: false,
         message: response.data?.error || `Adzuna API returned status ${response.status}`,
@@ -148,11 +185,20 @@ export const fetchAdzunaJobs = async (req, res) => {
 
     // Check if results array exists
     if (!response.data.results || !Array.isArray(response.data.results)) {
-      console.warn("No results in Adzuna API response:", response.data);
+      console.warn("⚠️ No results in Adzuna API response:", {
+        hasData: !!response.data,
+        dataKeys: response.data ? Object.keys(response.data) : [],
+        count: response.data?.count,
+        resultsType: typeof response.data?.results,
+        isArray: Array.isArray(response.data?.results),
+      });
       return res.json({
         success: true,
         jobs: [],
         count: 0,
+        total: 0,
+        page: parseInt(page),
+        totalPages: 0,
         message: "No jobs found",
         debug: process.env.NODE_ENV === "development" ? response.data : undefined,
       });
@@ -209,13 +255,18 @@ export const fetchAdzunaJobs = async (req, res) => {
     // Note: Remote jobs are included in the main results
     // The frontend can filter them using the showRemoteOnly toggle
 
-    res.json({
+    const totalJobs = response.data.count || mappedJobs.length;
+    const totalPages = Math.ceil(totalJobs / parseInt(resultsPerPage));
+
+    console.log(`✅ Successfully fetched ${mappedJobs.length} jobs from Adzuna (total available: ${totalJobs}, page ${page} of ${totalPages})`);
+
+    return res.json({
       success: true,
       jobs: mappedJobs,
       count: mappedJobs.length,
-      total: response.data.count || mappedJobs.length,
+      total: totalJobs,
       page: parseInt(page),
-      totalPages: Math.ceil((response.data.count || mappedJobs.length) / parseInt(resultsPerPage)),
+      totalPages: totalPages,
     });
   } catch (error) {
     console.error("Error fetching Adzuna jobs:", error);
