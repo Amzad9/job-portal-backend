@@ -6,7 +6,7 @@ const userSchema = new mongoose.Schema(
   {
     companyName: { type: String, trim: true }, // Optional for candidates
     name: { type: String, trim: true }, // For candidates
-    email: { type: String, required: true, unique: true, trim: true, lowercase: true, index: true },
+    email: { type: String, required: true, unique: true, trim: true, lowercase: true },
     password: { type: String, select: false }, // Optional for OAuth users
     phone: { type: String, trim: true },
     companyWebsite: { type: String, trim: true },
@@ -69,7 +69,7 @@ userSchema.methods.generateVerificationToken = function () {
   return verificationToken;
 };
 
-userSchema.index({ email: 1 });
+// email index is automatically created by unique: true
 userSchema.index({ resetPasswordToken: 1 });
 
 export default mongoose.model("User", userSchema);

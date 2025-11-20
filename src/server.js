@@ -9,6 +9,7 @@ import cors from "cors";
 import morgan from "morgan";
 import compression from "compression";
 import session from "express-session";
+import MongoStore from "connect-mongo";
 import passport from "./config/passport.js";
 import connectDB from "./config/db.js";
 import jobRoutes from "./routes/jobRoutes.js";
@@ -25,12 +26,16 @@ import candidateProfileRoutes from "./routes/candidateProfileRoutes.js";
 import adminAnalyticsRoutes from "./routes/adminAnalyticsRoutes.js";
 const app = express();
 
-// Initialize Passport
+// Initialize Passport with MongoDB session store
 app.use(
   session({
     secret: process.env.SESSION_SECRET || "your-secret-key-change-in-production",
     resave: false,
     saveUninitialized: false,
+    store: MongoStore.create({
+      mongoUrl: process.env.MONGO_URI || process.env.MONGODB_URI,
+      ttl: 24 * 60 * 60, // 24 hours in seconds
+    }),
     cookie: {
       secure: process.env.NODE_ENV === "production", // Use secure cookies in production
       httpOnly: true,

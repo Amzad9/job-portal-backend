@@ -35,7 +35,7 @@ const candidateProfileSchema = new mongoose.Schema(
     },
     yearsOfExperience: { type: Number, default: 0 },
     // Skills
-    skills: [{ type: String, trim: true, index: true }],
+    skills: [{ type: String, trim: true }],
     // Education
     education: [
       {
