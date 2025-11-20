@@ -54,7 +54,7 @@ if (process.env.NODE_ENV !== "production") {
 // CORS configuration
 const allowedOrigins = process.env.FRONTEND_URL 
   ? process.env.FRONTEND_URL.split(',').map(url => url.trim())
-  : ["http://localhost:3000", "http://localhost:3001", "http://127.0.0.1:3000"];
+  : ["http://localhost:3000", "http://localhost:3001", "http://127.0.0.1:3000","https://jobs.weblibron.com"];
 
 // Log allowed origins on startup
 console.log("🌐 CORS Configuration:");
