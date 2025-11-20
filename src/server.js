@@ -2,6 +2,7 @@ import express from "express";
 import dotenv from "dotenv";
 
 // Load environment variables FIRST before importing anything that uses them
+// .env is now in the same directory (src/)
 dotenv.config();
 
 import cors from "cors";

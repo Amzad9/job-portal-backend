@@ -1,8 +1,15 @@
-# Node modules
+# Dependencies
 node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
 # Environment variables
 .env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
 
 # Logs
 logs
@@ -10,43 +17,45 @@ logs
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+lerna-debug.log*
 
 # OS files
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
 
-# Build / dist folders
-dist/
-build/
-
-# Coverage / test files
-coverage/
-.nyc_output/
-
-# IDE / Editor settings
+# IDE
 .vscode/
 .idea/
 *.swp
+*.swo
+*~
+
+# Build outputs
+dist/
+build/
+*.tsbuildinfo
+
+# Testing
+coverage/
+.nyc_output/
 
 # Temporary files
 tmp/
 temp/
+*.tmp
 
-# PM2 / process manager files
-pids/
-*.pid
-*.seed
-*.pid.lock
+# Database
+*.sqlite
+*.db
 
-# Uploads (if you store files locally)
+# Uploads (if any)
 uploads/
+public/uploads/
 
-# Mongoose / database dump
-dump/
-*.bson
-*.json
-
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+# Source directory node_modules (if created)
+src/node_modules/
