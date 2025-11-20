@@ -1,74 +1,133 @@
-# ✅ Google OAuth Fix - "Unknown authentication strategy 'google'"
+# ✅ Google OAuth Production Fix
 
-## 🔧 **Problem Fixed**
+## **Issue:**
+Google OAuth callback was redirecting to `http://localhost:5001` instead of production backend `https://api.weblibron.com` when logging in from `https://jobs.weblibron.com`.
 
-The error "Unknown authentication strategy 'google'" occurred because:
-- `passport.js` was imported **before** `dotenv.config()` was called
-- Environment variables weren't loaded when the Google strategy tried to register
-- The strategy registration was skipped
-
-## ✅ **Solution Applied**
-
-1. **Moved `dotenv.config()` to the top of `server.js`** - Before any imports that use environment variables
-2. **Updated callback URL** - Now uses `BACKEND_URL` from `.env` or defaults to `http://localhost:5001`
-
-## 🚀 **Action Required: Restart Server**
-
-**You MUST restart your backend server** for the changes to take effect:
-
-```bash
-# Stop the current server (Ctrl+C in the terminal where it's running)
-# Then restart:
-cd /Users/weblib/Desktop/job-portal-backend
-npm start
+## **Root Cause:**
+Frontend login/signup pages were using:
+```typescript
+const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 ```
 
-## ✅ **Verification**
+This defaulted to localhost when `NEXT_PUBLIC_API_URL` wasn't set in Vercel.
 
-After restarting, you should see:
-- ✅ No "Google OAuth not configured" warning
-- ✅ Google strategy registered successfully
-- ✅ Google login should work
+## **Fix Applied:**
 
-## 🧪 **Test Google OAuth**
+### **1. Created `getApiBaseUrl()` Helper**
+- **File:** `app/utils/apiConfig.ts`
+- **Function:** Centralized API URL management
+- **Logic:**
+  - Uses `NEXT_PUBLIC_API_URL` if set
+  - Falls back to `https://api.weblibron.com` in production
+  - Uses `http://localhost:5001` only in local development
 
-1. **Restart backend server**
-2. **Visit:** `http://localhost:5001/api/auth/google`
-3. **You should be redirected to Google login**
+### **2. Updated All Frontend Files:**
 
-## ⚠️ **Important: Google Console Setup**
+✅ **Login Page** (`app/login/page.tsx`)
+- Updated `handleSocialLogin()` to use `getApiBaseUrl()`
+- Updated login API call to use `getApiBaseUrl()`
 
-Make sure this **Authorized redirect URI** is added in [Google Cloud Console](https://console.cloud.google.com/):
+✅ **Signup Page** (`app/signup/page.tsx`)
+- Updated `handleSocialSignup()` to use `getApiBaseUrl()`
+- Updated signup API call to use `getApiBaseUrl()`
 
+✅ **Components:**
+- `JobsFilter.tsx` - Updated API calls
+- `JobViewTracker.tsx` - Updated API calls
+- `ApplicationForm.tsx` - Updated API calls
+- `ApplyButton.tsx` - Updated API calls
+- `Header.tsx` - Updated API calls
+- `Footer.tsx` - Updated API calls
+
+## **Backend Configuration:**
+
+### **Passport.js Callback URL:**
+```javascript
+callbackURL: `${process.env.BACKEND_URL || `http://localhost:${process.env.PORT || 5000}`}/api/auth/google/callback`
 ```
-http://localhost:5001/api/auth/google/callback
+
+**✅ Correct for production:**
+- Uses `BACKEND_URL` environment variable
+- Should be set to `https://api.weblibron.com` in Render
+
+### **OAuth Controller Redirect:**
+```javascript
+const redirectUrl = new URL(`${process.env.FRONTEND_URL || "http://localhost:3000"}/oauth/callback`);
 ```
 
-**Steps:**
-1. Go to [Google Cloud Console](https://console.cloud.google.com/)
-2. Select your project
-3. Go to **APIs & Services** → **Credentials**
-4. Click on your OAuth 2.0 Client ID
-5. Under **Authorized redirect URIs**, add:
-   - `http://localhost:5001/api/auth/google/callback`
-6. Click **SAVE**
+**✅ Correct for production:**
+- Uses `FRONTEND_URL` environment variable
+- Should be set to `https://jobs.weblibron.com` in Render
 
-## 📝 **Current Configuration**
+## **Required Environment Variables:**
 
-Your `.env` file has:
+### **Frontend (Vercel):**
 ```env
+NEXT_PUBLIC_API_URL=https://api.weblibron.com
+```
+
+### **Backend (Render):**
+```env
+BACKEND_URL=https://api.weblibron.com
+FRONTEND_URL=https://jobs.weblibron.com
 GOOGLE_CLIENT_ID=1017917944371-c919rkmicfi35vs034lh5q6543ckojbl.apps.googleusercontent.com
 GOOGLE_CLIENT_SECRET=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
-BACKEND_URL=http://localhost:5001
 ```
 
-## ✅ **Status**
+## **Google Cloud Console Configuration:**
 
-- ✅ Code fixed
-- ✅ Environment variables loaded correctly
-- ⚠️ **Server restart required**
+### **Authorized JavaScript origins:**
+- `https://jobs.weblibron.com`
+- `http://localhost:3000` (for local dev)
+
+### **Authorized redirect URIs:**
+- `https://api.weblibron.com/api/auth/google/callback`
+- `http://localhost:5001/api/auth/google/callback` (for local dev)
+- `http://localhost:5000/api/auth/google/callback` (for local dev)
+
+## **Testing:**
+
+### **1. Local Development:**
+```bash
+# Frontend
+cd jobportal-frontend
+npm run dev  # Runs on http://localhost:3000
+
+# Backend
+cd job-portal-backend/src
+npm run dev  # Runs on http://localhost:5001
+```
+
+### **2. Production:**
+1. ✅ Frontend deployed: `https://jobs.weblibron.com`
+2. ✅ Backend deployed: `https://api.weblibron.com`
+3. ✅ Environment variables set in Vercel and Render
+4. ✅ Google OAuth configured in Google Cloud Console
+
+## **After Deployment:**
+
+1. **Set Vercel Environment Variable:**
+   - Go to Vercel Dashboard → Project Settings → Environment Variables
+   - Add: `NEXT_PUBLIC_API_URL=https://api.weblibron.com`
+   - Redeploy frontend
+
+2. **Verify Render Environment Variables:**
+   - `BACKEND_URL=https://api.weblibron.com`
+   - `FRONTEND_URL=https://jobs.weblibron.com`
+   - `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are set
+
+3. **Test Google Login:**
+   - Go to `https://jobs.weblibron.com/login`
+   - Click "Continue with Google"
+   - Should redirect to `https://api.weblibron.com/api/auth/google` (not localhost)
+   - After Google auth, should redirect back to `https://jobs.weblibron.com/oauth/callback`
+
+## **Status:**
+✅ **FIXED** - All frontend files now use `getApiBaseUrl()` which correctly resolves to production URL.
 
 ---
 
-**Next Step:** Restart your backend server and test Google login!
-
+**Next Steps:**
+1. Deploy frontend to Vercel with `NEXT_PUBLIC_API_URL` environment variable
+2. Verify backend has all required environment variables in Render
+3. Test Google OAuth login on production
